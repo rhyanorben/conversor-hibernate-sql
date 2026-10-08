@@ -1,0 +1,324 @@
+2026-10-08T11:01:50.306-03:00 DEBUG 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.SQL                        :     SELECT
+            SUM(COALESCE(CASE WHEN t.tpstatus IN ('ABERTO', 'COBRADO') THEN (t.vltitulo - COALESCE(r.valorPago, 0)) ELSE 0 END, 0)) as valorAberto,
+            SUM(COALESCE(CASE WHEN t.dtvencimento < ? AND t.tpstatus IN ('ABERTO', 'COBRADO') THEN (t.vltitulo - COALESCE(r.valorPago, 0)) ELSE 0 END, 0)) AS valorVencido,
+            SUM(COALESCE(r.valorPagoLiquido, 0)) as valorPago,
+            SUM(COALESCE(
+                CASE
+                    WHEN t.tpstatus IN ('ABERTO', 'PAGO', 'COBRADO') THEN (t.vltitulo + COALESCE(r.valorJuros, 0) + COALESCE(r.valorMultas, 0) - COALESCE(r.valorDescontos, 0))
+                    ELSE COALESCE(r.valorPagoLiquido, 0)
+                END
+            , 0)) as valorTotal
+        FROM gestao.tbcontas_receber_titulo t
+        LEFT JOIN LATERAL (
+            SELECT
+                SUM(COALESCE(r.vljuros, 0)) as valorJuros,
+                SUM(COALESCE(r.vlmulta, 0)) as valorMultas,
+                SUM(COALESCE(r.vldesconto, 0)) as valorDescontos,
+                SUM(COALESCE(r.vlpagamento, 0)) as valorPago,
+                SUM(COALESCE(r.vlpagamento, 0) + COALESCE(r.vljuros, 0) + COALESCE(r.vlmulta, 0) - COALESCE(r.vldesconto, 0)) as valorPagoLiquido
+            FROM gestao.tbtitulo_recebimento r
+            WHERE r.idtitulo = t.idtitulo
+        ) r ON TRUE
+        LEFT JOIN gestao.tbcliente_espelho cl ON cl.idcliente = t.idcliente
+        LEFT JOIN gestao.tbfornecedor_espelho f ON f.idfornecedor = t.idfornecedor
+        LEFT JOIN gestao.tbmeio_recebimento_espelho m ON t.idmeio_recebimento = m.idmeio_recebimento
+        WHERE t.idempresa = ?
+        AND (
+            (? = 'dataLancamento' AND t.dhlancamento BETWEEN ? AND ?)
+            OR (? = 'dataVencimento' AND t.dtvencimento BETWEEN ? AND ?)
+            OR (? = 'dataPagamento' AND EXISTS (SELECT 1 FROM gestao.tbtitulo_recebimento tr WHERE tr.idtitulo = t.idtitulo AND tr.dhpagamento BETWEEN ? AND ?))
+        )
+        AND (cl.idcliente = ? OR ? = 0)
+        AND (REGEXP_LIKE(t.nrdocumento, ?) IS TRUE)
+        AND (t.cdtitulo IN (null) OR (null) IS NULL)
+        AND (t.nrparcela IN (null) OR (null) IS NULL)
+        AND ((?,?,?,?,?,?,?) IS NULL OR t.tpstatus IN (?,?,?,?,?,?,?))
+        AND (
+            (?,?,?,?,?,?,?) IS NULL
+            OR m.tpfeature IN (?,?,?,?,?,?,?)
+            OR t.idtitulo IN (
+                SELECT DISTINCT tr.idtitulo FROM gestao.tbtitulo_recebimento tr
+                LEFT JOIN gestao.tbrecebimento_meio_recebimento rmr ON tr.idrecebimento_meio_recebimento = rmr.idrecebimento_meio_recebimento
+                WHERE tr.idtitulo = t.idtitulo AND rmr.tpfeature IN (?,?,?,?,?,?,?)
+            )
+        )
+        AND (
+            ? IN ('', 'TOTAL')
+            OR (? = 'ABERTO' AND t.tpstatus IN ('ABERTO', 'COBRADO'))
+            OR (? = 'VENCIDO' AND t.dtvencimento < ? AND t.tpstatus IN ('ABERTO', 'COBRADO'))
+            OR (? = 'PAGO' AND r.valorPago > 0)
+        )
+        AND (
+            (null) IS NULL
+            OR (? IS FALSE AND cl.idrota IN (null))
+            OR (? IS TRUE AND (cl.idrota NOT IN (null) OR cl.idrota IS NULL))
+        )
+        AND (
+            (null) IS NULL
+            OR (
+                ? IS FALSE
+                AND (
+                    t.idmeio_recebimento IN (null)
+                    OR EXISTS (SELECT 1 FROM gestao.tbtitulo_recebimento tr LEFT JOIN gestao.tbrecebimento_meio_recebimento rmr ON tr.idrecebimento_meio_recebimento = rmr.idrecebimento_meio_recebimento WHERE tr.idtitulo = t.idtitulo AND rmr.idmeio_recebimento IN (null))
+                )
+            )
+            OR (
+                ? IS TRUE
+                AND (
+                    (t.idmeio_recebimento IS NULL OR t.idmeio_recebimento NOT IN (null))
+                    AND NOT EXISTS (SELECT 1 FROM gestao.tbtitulo_recebimento tr LEFT JOIN gestao.tbrecebimento_meio_recebimento rmr ON tr.idrecebimento_meio_recebimento = rmr.idrecebimento_meio_recebimento WHERE tr.idtitulo = t.idtitulo AND rmr.idmeio_recebimento IN (null))
+                )
+            )
+        )
+        AND (
+            (null) IS NULL
+            OR (
+                ? IS FALSE
+                AND (
+                    t.idfuncionario IN (null)
+                    OR EXISTS (SELECT 1 FROM gestao.tbtitulo_recebimento tr WHERE tr.idtitulo = t.idtitulo AND tr.idfuncionario IN (null))
+                )
+            )
+            OR (
+                ? IS TRUE
+                AND (
+                    (t.idfuncionario IS NULL OR t.idfuncionario NOT IN (null))
+                    AND NOT EXISTS (SELECT 1 FROM gestao.tbtitulo_recebimento tr WHERE tr.idtitulo = t.idtitulo AND tr.idfuncionario IN (null))
+                )
+            )
+        )
+        AND (
+            (null) IS NULL
+            OR (? IS FALSE AND EXISTS (SELECT 1 FROM gestao.tbtitulo_recebimento tr WHERE tr.idtitulo = t.idtitulo AND tr.idcobrador IN (null)))
+            OR (? IS TRUE AND r.valorPago > 0 AND NOT EXISTS (SELECT 1 FROM gestao.tbtitulo_recebimento tr WHERE tr.idtitulo = t.idtitulo AND tr.idcobrador IN (null)))
+        )
+        AND (
+            (null) IS NULL
+            OR (
+                ? IS FALSE AND EXISTS (
+                    SELECT 1 FROM gestao.tbtitulo_recebimento tr
+                    JOIN gestao.tbrecebimento_meio_recebimento rmr ON rmr.idrecebimento_meio_recebimento = tr.idrecebimento_meio_recebimento
+                    WHERE tr.idtitulo = t.idtitulo
+                    AND rmr.idconta_corrente IN (null)
+                )
+            )
+            OR (
+                ? IS TRUE AND r.valorPago > 0 AND NOT EXISTS (
+                    SELECT 1 FROM gestao.tbtitulo_recebimento tr
+                    JOIN gestao.tbrecebimento_meio_recebimento rmr ON rmr.idrecebimento_meio_recebimento = tr.idrecebimento_meio_recebimento
+                    WHERE tr.idtitulo = t.idtitulo
+                    AND rmr.idconta_corrente IN (null)
+                )
+            )
+        )
+        AND (
+            (null) IS NULL
+            OR (? IS FALSE AND EXISTS (SELECT 1 FROM gestao.tbconta_contabil_espelho cce WHERE cce.idconta_contabil = t.idconta_contabil AND cce.idconta_contabil IN (null)))
+            OR (? IS TRUE AND NOT EXISTS (SELECT 1 FROM gestao.tbconta_contabil_espelho cce WHERE cce.idconta_contabil = t.idconta_contabil AND cce.idconta_contabil IN (null)))
+        )
+        AND (
+            (?) = ''
+                OR t.dstitulo ILIKE concat('%', ?, '%')
+        )
+        AND (
+            (?) = ''
+                OR t.dsobservacao ILIKE concat('%', ?, '%')
+        )
+
+Hibernate:     SELECT
+            SUM(COALESCE(CASE WHEN t.tpstatus IN ('ABERTO', 'COBRADO') THEN (t.vltitulo - COALESCE(r.valorPago, 0)) ELSE 0 END, 0)) as valorAberto,
+            SUM(COALESCE(CASE WHEN t.dtvencimento < ? AND t.tpstatus IN ('ABERTO', 'COBRADO') THEN (t.vltitulo - COALESCE(r.valorPago, 0)) ELSE 0 END, 0)) AS valorVencido,
+            SUM(COALESCE(r.valorPagoLiquido, 0)) as valorPago,
+            SUM(COALESCE(
+                CASE
+                    WHEN t.tpstatus IN ('ABERTO', 'PAGO', 'COBRADO') THEN (t.vltitulo + COALESCE(r.valorJuros, 0) + COALESCE(r.valorMultas, 0) - COALESCE(r.valorDescontos, 0))
+                    ELSE COALESCE(r.valorPagoLiquido, 0)
+                END
+            , 0)) as valorTotal
+        FROM gestao.tbcontas_receber_titulo t
+        LEFT JOIN LATERAL (
+            SELECT
+                SUM(COALESCE(r.vljuros, 0)) as valorJuros,
+                SUM(COALESCE(r.vlmulta, 0)) as valorMultas,
+                SUM(COALESCE(r.vldesconto, 0)) as valorDescontos,
+                SUM(COALESCE(r.vlpagamento, 0)) as valorPago,
+                SUM(COALESCE(r.vlpagamento, 0) + COALESCE(r.vljuros, 0) + COALESCE(r.vlmulta, 0) - COALESCE(r.vldesconto, 0)) as valorPagoLiquido
+            FROM gestao.tbtitulo_recebimento r
+            WHERE r.idtitulo = t.idtitulo
+        ) r ON TRUE
+        LEFT JOIN gestao.tbcliente_espelho cl ON cl.idcliente = t.idcliente
+        LEFT JOIN gestao.tbfornecedor_espelho f ON f.idfornecedor = t.idfornecedor
+        LEFT JOIN gestao.tbmeio_recebimento_espelho m ON t.idmeio_recebimento = m.idmeio_recebimento
+        WHERE t.idempresa = ?
+        AND (
+            (? = 'dataLancamento' AND t.dhlancamento BETWEEN ? AND ?)
+            OR (? = 'dataVencimento' AND t.dtvencimento BETWEEN ? AND ?)
+            OR (? = 'dataPagamento' AND EXISTS (SELECT 1 FROM gestao.tbtitulo_recebimento tr WHERE tr.idtitulo = t.idtitulo AND tr.dhpagamento BETWEEN ? AND ?))
+        )
+        AND (cl.idcliente = ? OR ? = 0)
+        AND (REGEXP_LIKE(t.nrdocumento, ?) IS TRUE)
+        AND (t.cdtitulo IN (null) OR (null) IS NULL)
+        AND (t.nrparcela IN (null) OR (null) IS NULL)
+        AND ((?,?,?,?,?,?,?) IS NULL OR t.tpstatus IN (?,?,?,?,?,?,?))
+        AND (
+            (?,?,?,?,?,?,?) IS NULL
+            OR m.tpfeature IN (?,?,?,?,?,?,?)
+            OR t.idtitulo IN (
+                SELECT DISTINCT tr.idtitulo FROM gestao.tbtitulo_recebimento tr
+                LEFT JOIN gestao.tbrecebimento_meio_recebimento rmr ON tr.idrecebimento_meio_recebimento = rmr.idrecebimento_meio_recebimento
+                WHERE tr.idtitulo = t.idtitulo AND rmr.tpfeature IN (?,?,?,?,?,?,?)
+            )
+        )
+        AND (
+            ? IN ('', 'TOTAL')
+            OR (? = 'ABERTO' AND t.tpstatus IN ('ABERTO', 'COBRADO'))
+            OR (? = 'VENCIDO' AND t.dtvencimento < ? AND t.tpstatus IN ('ABERTO', 'COBRADO'))
+            OR (? = 'PAGO' AND r.valorPago > 0)
+        )
+        AND (
+            (null) IS NULL
+            OR (? IS FALSE AND cl.idrota IN (null))
+            OR (? IS TRUE AND (cl.idrota NOT IN (null) OR cl.idrota IS NULL))
+        )
+        AND (
+            (null) IS NULL
+            OR (
+                ? IS FALSE
+                AND (
+                    t.idmeio_recebimento IN (null)
+                    OR EXISTS (SELECT 1 FROM gestao.tbtitulo_recebimento tr LEFT JOIN gestao.tbrecebimento_meio_recebimento rmr ON tr.idrecebimento_meio_recebimento = rmr.idrecebimento_meio_recebimento WHERE tr.idtitulo = t.idtitulo AND rmr.idmeio_recebimento IN (null))
+                )
+            )
+            OR (
+                ? IS TRUE
+                AND (
+                    (t.idmeio_recebimento IS NULL OR t.idmeio_recebimento NOT IN (null))
+                    AND NOT EXISTS (SELECT 1 FROM gestao.tbtitulo_recebimento tr LEFT JOIN gestao.tbrecebimento_meio_recebimento rmr ON tr.idrecebimento_meio_recebimento = rmr.idrecebimento_meio_recebimento WHERE tr.idtitulo = t.idtitulo AND rmr.idmeio_recebimento IN (null))
+                )
+            )
+        )
+        AND (
+            (null) IS NULL
+            OR (
+                ? IS FALSE
+                AND (
+                    t.idfuncionario IN (null)
+                    OR EXISTS (SELECT 1 FROM gestao.tbtitulo_recebimento tr WHERE tr.idtitulo = t.idtitulo AND tr.idfuncionario IN (null))
+                )
+            )
+            OR (
+                ? IS TRUE
+                AND (
+                    (t.idfuncionario IS NULL OR t.idfuncionario NOT IN (null))
+                    AND NOT EXISTS (SELECT 1 FROM gestao.tbtitulo_recebimento tr WHERE tr.idtitulo = t.idtitulo AND tr.idfuncionario IN (null))
+                )
+            )
+        )
+        AND (
+            (null) IS NULL
+            OR (? IS FALSE AND EXISTS (SELECT 1 FROM gestao.tbtitulo_recebimento tr WHERE tr.idtitulo = t.idtitulo AND tr.idcobrador IN (null)))
+            OR (? IS TRUE AND r.valorPago > 0 AND NOT EXISTS (SELECT 1 FROM gestao.tbtitulo_recebimento tr WHERE tr.idtitulo = t.idtitulo AND tr.idcobrador IN (null)))
+        )
+        AND (
+            (null) IS NULL
+            OR (
+                ? IS FALSE AND EXISTS (
+                    SELECT 1 FROM gestao.tbtitulo_recebimento tr
+                    JOIN gestao.tbrecebimento_meio_recebimento rmr ON rmr.idrecebimento_meio_recebimento = tr.idrecebimento_meio_recebimento
+                    WHERE tr.idtitulo = t.idtitulo
+                    AND rmr.idconta_corrente IN (null)
+                )
+            )
+            OR (
+                ? IS TRUE AND r.valorPago > 0 AND NOT EXISTS (
+                    SELECT 1 FROM gestao.tbtitulo_recebimento tr
+                    JOIN gestao.tbrecebimento_meio_recebimento rmr ON rmr.idrecebimento_meio_recebimento = tr.idrecebimento_meio_recebimento
+                    WHERE tr.idtitulo = t.idtitulo
+                    AND rmr.idconta_corrente IN (null)
+                )
+            )
+        )
+        AND (
+            (null) IS NULL
+            OR (? IS FALSE AND EXISTS (SELECT 1 FROM gestao.tbconta_contabil_espelho cce WHERE cce.idconta_contabil = t.idconta_contabil AND cce.idconta_contabil IN (null)))
+            OR (? IS TRUE AND NOT EXISTS (SELECT 1 FROM gestao.tbconta_contabil_espelho cce WHERE cce.idconta_contabil = t.idconta_contabil AND cce.idconta_contabil IN (null)))
+        )
+        AND (
+            (?) = ''
+                OR t.dstitulo ILIKE concat('%', ?, '%')
+        )
+        AND (
+            (?) = ''
+                OR t.dsobservacao ILIKE concat('%', ?, '%')
+        )
+
+2026-10-08T11:01:50.306-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (1:DATE) <- [2026-10-08]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (2:BIGINT) <- [74]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (3:VARCHAR) <- [dataLancamento]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (4:TIMESTAMP_UTC) <- [2020-10-01T00:00-03:00]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (5:TIMESTAMP_UTC) <- [2026-10-08T23:59:59.999999-03:00]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (6:VARCHAR) <- [dataLancamento]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (7:DATE) <- [1926-10-08]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (8:DATE) <- [2126-10-08]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (9:VARCHAR) <- [dataLancamento]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (10:TIMESTAMP_UTC) <- [1926-10-08T00:00-03:00]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (11:TIMESTAMP_UTC) <- [2126-10-08T23:59:59.999999-03:00]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (12:BIGINT) <- [0]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (13:BIGINT) <- [0]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (14:VARCHAR) <- [1|2|3|4|5|6|7|8|9]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (15:VARCHAR) <- [AGRUPADO]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (16:VARCHAR) <- [CANCELADO]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (17:VARCHAR) <- [ABERTO]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (18:VARCHAR) <- [COBRADO]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (19:VARCHAR) <- [PERDIDO]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (20:VARCHAR) <- [DESDOBRADO]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (21:VARCHAR) <- [PAGO]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (22:VARCHAR) <- [AGRUPADO]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (23:VARCHAR) <- [CANCELADO]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (24:VARCHAR) <- [ABERTO]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (25:VARCHAR) <- [COBRADO]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (26:VARCHAR) <- [PERDIDO]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (27:VARCHAR) <- [DESDOBRADO]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (28:VARCHAR) <- [PAGO]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (29:VARCHAR) <- [CONTROLE_CAIXA]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (30:VARCHAR) <- [CONTROLE_CARTAO]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (31:VARCHAR) <- [CONTROLE_CHEQUE]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (32:VARCHAR) <- [CONTAS_RECEBER]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (33:VARCHAR) <- [CONTROLE_CREDITO]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (34:VARCHAR) <- [CONTA_CORRENTE]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (35:VARCHAR) <- [BOLETO]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (36:VARCHAR) <- [CONTROLE_CAIXA]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (37:VARCHAR) <- [CONTROLE_CARTAO]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (38:VARCHAR) <- [CONTROLE_CHEQUE]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (39:VARCHAR) <- [CONTAS_RECEBER]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (40:VARCHAR) <- [CONTROLE_CREDITO]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (41:VARCHAR) <- [CONTA_CORRENTE]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (42:VARCHAR) <- [BOLETO]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (43:VARCHAR) <- [CONTROLE_CAIXA]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (44:VARCHAR) <- [CONTROLE_CARTAO]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (45:VARCHAR) <- [CONTROLE_CHEQUE]
+2026-10-08T11:01:50.307-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (46:VARCHAR) <- [CONTAS_RECEBER]
+2026-10-08T11:01:50.308-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (47:VARCHAR) <- [CONTROLE_CREDITO]
+2026-10-08T11:01:50.308-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (48:VARCHAR) <- [CONTA_CORRENTE]
+2026-10-08T11:01:50.308-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (49:VARCHAR) <- [BOLETO]
+2026-10-08T11:01:50.308-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (50:VARCHAR) <- []
+2026-10-08T11:01:50.308-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (51:VARCHAR) <- []
+2026-10-08T11:01:50.308-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (52:VARCHAR) <- []
+2026-10-08T11:01:50.308-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (53:DATE) <- [2026-10-08]
+2026-10-08T11:01:50.308-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (54:VARCHAR) <- []
+2026-10-08T11:01:50.308-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (55:BOOLEAN) <- [false]
+2026-10-08T11:01:50.308-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (56:BOOLEAN) <- [false]
+2026-10-08T11:01:50.308-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (57:BOOLEAN) <- [false]
+2026-10-08T11:01:50.308-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (58:BOOLEAN) <- [false]
+2026-10-08T11:01:50.308-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (59:BOOLEAN) <- [false]
+2026-10-08T11:01:50.308-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (60:BOOLEAN) <- [false]
+2026-10-08T11:01:50.308-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (61:BOOLEAN) <- [false]
+2026-10-08T11:01:50.308-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (62:BOOLEAN) <- [false]
+2026-10-08T11:01:50.308-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (63:BOOLEAN) <- [false]
+2026-10-08T11:01:50.308-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (64:BOOLEAN) <- [false]
+2026-10-08T11:01:50.308-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (65:BOOLEAN) <- [false]
+2026-10-08T11:01:50.308-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (66:BOOLEAN) <- [false]
+2026-10-08T11:01:50.308-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (67:VARCHAR) <- []
+2026-10-08T11:01:50.308-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (68:VARCHAR) <- []
+2026-10-08T11:01:50.308-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (69:VARCHAR) <- []
+2026-10-08T11:01:50.308-03:00 TRACE 658538 --- [gestao-service] [nio-8183-exec-1] org.hibernate.orm.jdbc.bind              : binding parameter (70:VARCHAR) <- []
