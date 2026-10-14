@@ -1,0 +1,9 @@
+{
+  "name": "conversor-hibernate-sql",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/frontend.test.js",
+    "test:coverage": "node --test --experimental-test-coverage tests/frontend.test.js"
+  }
+}

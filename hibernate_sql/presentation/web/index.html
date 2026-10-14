@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hibernate → PostgreSQL</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+<main>
+  <h1>Hibernate → PostgreSQL</h1>
+  <p>Cole a SQL e os logs de binding. Gere a query com os valores preenchidos para testar no PostgreSQL.</p>
+  <section class="panel">
+    <label for="logs">Logs do Hibernate</label>
+    <textarea id="logs" spellcheck="false" placeholder="Hibernate: select * from gestao.tbcontas_receber_titulo where idtitulo = ?&#10;binding parameter (1:BIGINT) <- [1292112]"></textarea>
+    <div class="actions">
+      <button class="primary" id="normal">Montar query</button>
+      <label class="prefix" for="prefix">Comando:</label>
+      <select id="prefix" aria-label="Comando para adicionar à query"></select>
+      <button id="command" disabled>Montar com comando</button>
+      <button id="clear">Limpar</button>
+    </div>
+    <p id="status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="panel">
+    <div class="heading">
+      <label for="output">Query pronta</label>
+      <button id="copy" disabled>Copiar SQL</button>
+    </div>
+    <textarea id="output" readonly spellcheck="false" placeholder="A SQL gerada aparecerá aqui."></textarea>
+  </section>
+  <footer>Processamento local. Nenhuma conexão com o banco de dados. EXPLAIN ANALYZE executa a query quando você a roda no PostgreSQL.</footer>
+</main>
+</body>
+</html>
