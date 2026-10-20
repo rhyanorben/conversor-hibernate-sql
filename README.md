@@ -22,7 +22,13 @@ python3 app.py --no-browser --port 8766
 
 A porta `0` seleciona uma porta disponível; o endereço efetivo aparece no terminal. Encerre o servidor com Ctrl+C.
 
-Cole os logs com a SQL e todas as linhas `binding parameter (posição:TIPO) <- [valor]`. Clique em **Montar query**, ou escolha **EXPLAIN ANALYZE** e clique em **Montar com comando**. Use **Copiar SQL** para levar o resultado ao PostgreSQL. Se o navegador não permitir acesso à área de transferência, a SQL será selecionada para copiar manualmente.
+Cole os logs com a SQL e todas as linhas `binding parameter (posição:TIPO) <- [valor]`. A conversão acontece automaticamente ao colar no campo. Você também pode selecionar um arquivo em **Importar arquivo de logs** ou arrastar um `.log` ou `.txt` para o painel de entrada: o conteúdo substitui o campo e é convertido automaticamente. Importe um arquivo por vez, em UTF-8, de até 5 MB; o limite da API considera também o JSON enviado, então um arquivo próximo desse limite pode ser recusado.
+
+A conversão automática gera SQL sem comando adicional. Para converter após digitar ou editar manualmente, clique em **Montar query**. Para adicionar um comando, escolha **EXPLAIN ANALYZE** e clique em **Montar com comando**.
+
+Em telas de computador, os logs e a SQL ficam lado a lado em painéis de mesma largura, ajustados à altura da janela, com rolagem dentro dos campos. Em telas pequenas, os painéis ficam empilhados. As instruções adicionais estão em **Como usar**.
+
+Use **Copiar SQL** para levar o resultado ao PostgreSQL ou **Baixar .sql** para salvar a saída atual em `queries.sql`, inclusive o comando adicional se aplicado. Se o navegador não permitir acesso à área de transferência, a SQL será selecionada para copiar manualmente. Os arquivos importados seguem o mesmo fluxo de envio ao servidor dos logs colados; o download é gerado no navegador.
 
 ## Publicar no Render
 
@@ -127,19 +133,37 @@ Também é possível injetar um dicionário próprio ao criar `ConversionService
 
 ## Comportamento e limites
 
-- Reconhece `org.hibernate.SQL :` e `Hibernate:` e remove a duplicação consecutiva da mesma SQL sem binds entre elas. Execuções que já possuem binds são preservadas.
+- Reconhece `org.hibernate.SQL :` e `Hibernate:`, além do separador ` - ` em registros do logger. Remove a duplicação consecutiva da mesma SQL sem binds entre elas, dentro da mesma thread. Execuções que já possuem binds e queries de threads diferentes são preservadas.
 - Aceita SQL simples sem cabeçalho, começando por um comando reconhecido, como SELECT, WITH, INSERT ou UPDATE. Texto de log sem SQL é rejeitado.
 - Substitui parâmetros pela posição, incluindo posições maiores que 9 e binds fora de ordem.
 - Trata números sem perda de precisão, booleanos, NULL, textos com aspas/barras, datas, horários e UUIDs. Outros tipos são representados como texto SQL.
 - Preserva linhas vazias e interrogações dentro de strings, identificadores, dollar quoting e comentários SQL, inclusive comentários aninhados.
 - Recusa parâmetros ausentes, excedentes, repetidos ou com posição zero; bindings malformados; blocos SQL vazios; números inválidos ou não finitos; booleanos inválidos e regiões SQL sem fechamento.
-- Aceita várias queries e SQL em várias linhas. Cole blocos de uma execução por vez: logs intercalados de threads diferentes precisam ser separados antes da conversão.
+- Aceita várias queries e SQL em várias linhas. Separa bindings de threads intercaladas quando o prefixo do logger identifica a thread entre colchetes. Mantém a ordem em que as queries aparecem no log e inicia uma nova execução a cada registro SQL da mesma thread.
+- Erros de conversão identificam a query (numeração após remover duplicações), a linha de início da SQL e a thread, quando disponíveis. Erros de binding e de valor também identificam o parâmetro e a linha do binding; parâmetros ausentes apontam para a SQL em que faltam.
 - `?` usado como operador PostgreSQL fora de regiões protegidas é interpretado como placeholder.
 - Valores truncados, binários, arrays e objetos que exigem serialização própria não podem ser reconstruídos de forma confiável. Um texto literal `null` não pode ser distinguido de NULL nesse formato de log. Casts não validam o conteúdo de datas ou UUIDs; essa validação pertence ao PostgreSQL.
 
 Os logs são enviados pelo navegador ao servidor desta aplicação para conversão. Na execução local, esse servidor fica no seu computador; na nuvem, o processamento ocorre no provedor de hospedagem. A aplicação não grava o corpo das requisições nem os logs enviados e não possui login: quem tiver acesso ao endereço poderá usar a ferramenta. Nenhuma query é executada pela aplicação. Ao executar EXPLAIN ANALYZE no PostgreSQL, o banco executa a instrução, inclusive INSERT/UPDATE/DELETE.
 
-A tela bloqueia envios simultâneos. Limpar os campos invalida resultados pendentes para que respostas antigas não preencham novamente a saída.
+A tela bloqueia cliques de conversão enquanto uma operação está em andamento. Editar, colar, importar outro arquivo ou limpar os campos invalida resultados pendentes para que respostas ou leituras antigas não preencham novamente a saída. Alterar a entrada também limpa o resultado anterior e desabilita a cópia e o download até uma nova conversão bem-sucedida.
+
+### Logs intercalados e localização de erros
+
+São aceitos prefixos comuns de Spring/Logback, como `[minha-aplicacao] [worker-1] org.hibernate.SQL :` ou `[worker-1] DEBUG org.hibernate.SQL -`. A thread é o último grupo entre colchetes antes do nome do logger. Por exemplo, estes registros podem ser colados juntos:
+
+```text
+2026-10-20T10:00:00 DEBUG [worker-1] org.hibernate.SQL : select * from minha_tabela where minha_coluna = ?
+2026-10-20T10:00:00 DEBUG [worker-2] org.hibernate.SQL : select * from outra_tabela where outra_coluna = ?
+2026-10-20T10:00:00 TRACE [worker-2] org.hibernate.orm.jdbc.bind : binding parameter (1:INTEGER) <- [456]
+2026-10-20T10:00:00 TRACE [worker-1] org.hibernate.orm.jdbc.bind : binding parameter (1:INTEGER) <- [123]
+```
+
+A primeira SQL recebe `123` e a segunda recebe `456`, mesmo com os bindings fora da ordem das queries. Se o segundo binding tiver um valor inválido, a mensagem terá o contexto, por exemplo: `Query 1, SQL na linha 1, thread worker-1, parâmetro 1, linha 4: Valor numérico inválido para INTEGER: abc`.
+
+Use logs da mesma aplicação e inclua a thread tanto nos registros SQL quanto nos bindings. A aplicação não infere IDs de requisição ou transação. Um binding sem thread só é associado quando há uma única query ativa; se houver mais de uma, a conversão aponta a ambiguidade. Um binding com thread desconhecida não é associado à SQL de outra thread. A duplicação consecutiva de uma SQL por `Hibernate:` é reconhecida mesmo sem prefixo, preservando a thread do registro original.
+
+Linhas de continuação de uma SQL devem permanecer juntas após seu cabeçalho: trechos sem identificação de thread intercalados com outros registros não podem ser reconstruídos com segurança. Execuções sobrepostas na mesma thread também precisam ser separadas na origem. A conversão continua retornando erro sem saída parcial se qualquer query estiver inválida.
 
 ## API
 
@@ -162,7 +186,7 @@ python3 -m unittest discover -v
 npm test
 ```
 
-Os testes Python verificam regras de domínio, contratos do caso de uso, parser, regressões, argumentos de execução, dependências arquiteturais, requisições HTTP reais e o contrato WSGI usado na publicação. Os testes JavaScript verificam o cliente HTTP, carregamento de comandos, conversão, erros, cópia, limpeza e respostas fora de ordem. Não executam um navegador real nem validam consultas em um banco PostgreSQL.
+Os testes Python verificam regras de domínio, contratos do caso de uso, parser, regressões, argumentos de execução, dependências arquiteturais, requisições HTTP reais e o contrato WSGI usado na publicação. Os testes JavaScript verificam o cliente HTTP, carregamento de comandos, conversão ao colar, importação por seleção e arraste, validação de arquivos, download, erros, cópia, limpeza e respostas ou leituras fora de ordem. Não executam um navegador real nem validam consultas em um banco PostgreSQL.
 
 Para medir cobertura sem instalar pacotes:
 

@@ -103,6 +103,31 @@ class WsgiIntegrationTests(unittest.TestCase):
                 self.assertEqual(status, get_status)
                 self.assertEqual(headers, get_headers)
 
+    def test_interleaved_threads_are_converted_through_the_public_api(self):
+        log = '\n'.join([
+            '2026-10-20T10:00:00 DEBUG [one] org.hibernate.SQL : select ?',
+            '2026-10-20T10:00:00 DEBUG [two] org.hibernate.SQL : select ?',
+            '2026-10-20T10:00:00 TRACE [two] org.hibernate.orm.jdbc.bind : binding parameter (1:INT) <- [2]',
+            '2026-10-20T10:00:00 TRACE [one] org.hibernate.orm.jdbc.bind : binding parameter (1:INT) <- [1]',
+        ])
+        payload = json.dumps({'log': log}).encode('utf-8')
+        status, _, body = self.request('POST', '/convert', payload)
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body), {'sql': 'select 1\n;\n\nselect 2\n;', 'count': 2})
+
+    def test_conversion_errors_expose_query_thread_parameter_and_line_to_the_browser(self):
+        log = '\n'.join([
+            'Hibernate: select 1',
+            '2026-10-20T10:00:00 DEBUG [worker-2] org.hibernate.SQL : select ?',
+            '2026-10-20T10:00:00 TRACE [worker-2] org.hibernate.orm.jdbc.bind : binding parameter (1:BOOLEAN) <- [yes]',
+        ])
+        payload = json.dumps({'log': log}).encode('utf-8')
+        status, _, body = self.request('POST', '/convert', payload)
+        self.assertEqual(status, 400)
+        self.assertEqual(json.loads(body), {
+            'error': 'Query 2, SQL na linha 2, thread worker-2, parâmetro 1, linha 3: Booleano inválido: yes',
+        })
+
     def test_missing_routes_and_unsupported_methods(self):
         for method, path in [('GET', '/missing'), ('GET', '/../app.py'), ('POST', '/missing')]:
             with self.subTest(method=method, path=path):

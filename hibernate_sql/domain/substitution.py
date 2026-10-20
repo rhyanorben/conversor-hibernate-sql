@@ -1,6 +1,8 @@
 import re
 from typing import Mapping
 
+from hibernate_sql.domain.models import ParameterError
+
 
 DOLLAR_DELIMITER = re.compile(r'\$(?:[A-Za-z_][A-Za-z_0-9]*)?\$')
 
@@ -74,9 +76,9 @@ def substitute(sql: str, parameters: Mapping[int, str]) -> str:
             index = end
         elif sql[index] == '?':
             if position not in parameters:
-                raise ValueError(
+                raise ParameterError(
                     f'Falta o parâmetro {position}. '
-                    'Cole todos os logs de binding desta query.'
+                    'Cole todos os logs de binding desta query.', position,
                 )
             result.append(parameters[position])
             position += 1
@@ -86,5 +88,5 @@ def substitute(sql: str, parameters: Mapping[int, str]) -> str:
             index += 1
     extras = set(parameters) - set(range(1, position))
     if extras:
-        raise ValueError('Há parâmetros excedentes: ' + ', '.join(map(str, sorted(extras))))
+        raise ParameterError('Há parâmetros excedentes: ' + ', '.join(map(str, sorted(extras))), min(extras))
     return ''.join(result).strip()

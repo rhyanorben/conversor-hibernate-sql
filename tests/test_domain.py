@@ -77,7 +77,7 @@ class SubstitutionTests(unittest.TestCase):
         query.add_binding(1, Binding('INTEGER', '1'))
         for position in [0, -1, 1]:
             with self.subTest(position=position):
-                with self.assertRaisesRegex(ValueError, 'inválido ou repetido'):
+                with self.assertRaisesRegex(ValueError, 'inválido' if position < 1 else 'repetido'):
                     query.add_binding(position, Binding('INTEGER', '2'))
 
     def test_queries_do_not_share_bindings(self):
