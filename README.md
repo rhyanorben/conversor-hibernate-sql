@@ -2,6 +2,10 @@
 
 Aplicação que reconstrói SQL PostgreSQL a partir dos logs de SQL e binding do Hibernate. Para executar localmente, usa Python 3.8+ e apenas a biblioteca padrão, sem dependências para instalar. Para publicar na nuvem, usa Gunicorn e Python 3.13, conforme os arquivos de configuração do projeto. Node.js 22+ é necessário somente para os testes do JavaScript. A aplicação não se conecta ao banco.
 
+## Hospedado na WEB
+
+https://conversor-hibernate-sql.onrender.com/
+
 ## Executar
 
 Na raiz do projeto:
