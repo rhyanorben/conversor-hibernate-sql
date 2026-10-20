@@ -58,6 +58,16 @@ O Render fornece o endereço e HTTPS, sem exigir um domínio próprio. No plano 
 
 ## Organização e dependências
 
+### Ícone da guia do navegador
+
+O ícone representa um banco de dados com uma seta de conversão, em azul e verde.
+O desenho editável fica em `hibernate_sql/presentation/web/favicon.svg`; a versão
+`favicon.ico` inclui os tamanhos 16, 32 e 48 pixels para compatibilidade.
+Ambos são servidos pela aplicação local e pela publicação WSGI, sem configuração
+adicional no Render. Ao alterar o desenho, atualize também a versão `.ico`.
+
+### Estrutura do projeto
+
 ```text
 app.py                            Entrada local e aplicação WSGI para publicação
 converter.py                      API compatível: convert, literal, substitute

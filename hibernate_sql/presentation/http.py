@@ -12,6 +12,8 @@ MAX_BODY_BYTES = 5_000_000
 REQUEST_TIMEOUT_SECONDS = 10
 STATIC_ROUTES = {
     '/': ('index.html', 'text/html; charset=utf-8'),
+    '/favicon.svg': ('favicon.svg', 'image/svg+xml'),
+    '/favicon.ico': ('favicon.ico', 'image/vnd.microsoft.icon'),
     '/styles.css': ('styles.css', 'text/css; charset=utf-8'),
     '/app.js': ('app.js', 'text/javascript; charset=utf-8'),
     '/controller.js': ('controller.js', 'text/javascript; charset=utf-8'),
