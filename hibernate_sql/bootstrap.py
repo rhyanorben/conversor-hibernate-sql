@@ -6,9 +6,12 @@ from typing import Optional, Sequence
 from hibernate_sql.application.conversion import ConversionService
 from hibernate_sql.infrastructure.hibernate_logs import HibernateLogParser
 from hibernate_sql.presentation.http import make_handler
+from hibernate_sql.presentation.wsgi import make_application
 
 
-Handler = make_handler(ConversionService(HibernateLogParser()))
+service = ConversionService(HibernateLogParser())
+Handler = make_handler(service)
+application = make_application(service)
 
 
 def port_number(value: str) -> int:

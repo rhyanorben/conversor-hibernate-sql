@@ -25,6 +25,53 @@ class RequestError(ValueError):
         self.status = status
 
 
+def get_response(service: ConversionService, path: str):
+    if path in STATIC_ROUTES:
+        filename, content_type = STATIC_ROUTES[path]
+        try:
+            body = (WEB_DIRECTORY / filename).read_bytes()
+        except OSError:
+            return 503, {'error': 'Interface indisponível.'}, 'application/json; charset=utf-8'
+        return 200, body, content_type
+    if path == '/prefixes':
+        return 200, list(service.prefixes), 'application/json; charset=utf-8'
+    return 404, {'error': 'Página não encontrada.'}, 'application/json; charset=utf-8'
+
+
+def read_payload(headers, stream) -> dict:
+    if headers.get('Transfer-Encoding'):
+        raise RequestError('Transfer-Encoding não é suportado.')
+    lengths = headers.get_all('Content-Length', [])
+    if len(lengths) != 1 or not lengths[0].isascii() or not lengths[0].isdigit():
+        raise RequestError('Content-Length inválido.')
+    # Compare the decimal text before int() so arbitrarily long headers stay a 413.
+    normalized_length = lengths[0].lstrip('0') or '0'
+    maximum = str(MAX_BODY_BYTES)
+    if (len(normalized_length) > len(maximum)
+            or (len(normalized_length) == len(maximum) and normalized_length > maximum)):
+        raise RequestError('Cole no máximo 5 MB de logs.', 413)
+    length = int(normalized_length)
+    if length == 0:
+        raise RequestError('Informe um corpo JSON.')
+    if headers.get_content_type() != 'application/json':
+        raise RequestError('Use Content-Type application/json.', 415)
+    body = stream.read(length)
+    if len(body) != length:
+        raise RequestError('Corpo da requisição incompleto.')
+    try:
+        payload = json.loads(body.decode('utf-8'))
+    except (ValueError, UnicodeDecodeError, RecursionError):
+        raise RequestError('JSON inválido. Envie um objeto em UTF-8.') from None
+    if not isinstance(payload, dict) or not isinstance(payload.get('log'), str):
+        raise RequestError('Informe os logs como texto.')
+    return payload
+
+
+def convert_response(service: ConversionService, payload: dict) -> dict:
+    result = service.execute(payload['log'], payload.get('prefix', ''))
+    return {'sql': result.sql, 'count': result.count}
+
+
 class ConversionHandler(BaseHTTPRequestHandler):
     service: ConversionService
 
@@ -44,42 +91,10 @@ class ConversionHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         path = urlsplit(self.path).path
-        if path in STATIC_ROUTES:
-            filename, content_type = STATIC_ROUTES[path]
-            try:
-                body = (WEB_DIRECTORY / filename).read_bytes()
-            except OSError:
-                self.reply(503, {'error': 'Interface indisponível.'})
-                return
-            self.reply(200, body, content_type)
-        elif path == '/prefixes':
-            self.reply(200, list(self.service.prefixes))
-        else:
-            self.reply(404, {'error': 'Página não encontrada.'})
+        self.reply(*get_response(self.service, path))
 
     def read_payload(self) -> dict:
-        if self.headers.get('Transfer-Encoding'):
-            raise RequestError('Transfer-Encoding não é suportado.')
-        lengths = self.headers.get_all('Content-Length', [])
-        if len(lengths) != 1 or not lengths[0].isascii() or not lengths[0].isdigit():
-            raise RequestError('Content-Length inválido.')
-        length = int(lengths[0])
-        if length == 0:
-            raise RequestError('Informe um corpo JSON.')
-        if length > MAX_BODY_BYTES:
-            raise RequestError('Cole no máximo 5 MB de logs.', 413)
-        if self.headers.get_content_type() != 'application/json':
-            raise RequestError('Use Content-Type application/json.', 415)
-        body = self.rfile.read(length)
-        if len(body) != length:
-            raise RequestError('Corpo da requisição incompleto.')
-        try:
-            payload = json.loads(body.decode('utf-8'))
-        except (ValueError, UnicodeDecodeError, RecursionError):
-            raise RequestError('JSON inválido. Envie um objeto em UTF-8.') from None
-        if not isinstance(payload, dict) or not isinstance(payload.get('log'), str):
-            raise RequestError('Informe os logs como texto.')
-        return payload
+        return read_payload(self.headers, self.rfile)
 
     def do_POST(self) -> None:
         if urlsplit(self.path).path != '/convert':
@@ -87,7 +102,7 @@ class ConversionHandler(BaseHTTPRequestHandler):
             return
         try:
             payload = self.read_payload()
-            result = self.service.execute(payload['log'], payload.get('prefix', ''))
+            result = convert_response(self.service, payload)
         except RequestError as error:
             self.reply(error.status, {'error': str(error)})
         except ValueError as error:
@@ -95,7 +110,7 @@ class ConversionHandler(BaseHTTPRequestHandler):
         except TimeoutError:
             self.reply(408, {'error': 'Tempo limite para receber os logs excedido.'})
         else:
-            self.reply(200, {'sql': result.sql, 'count': result.count})
+            self.reply(200, result)
 
 
 def make_handler(service: ConversionService) -> Type[ConversionHandler]:
