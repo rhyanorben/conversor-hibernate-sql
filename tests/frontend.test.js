@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createApi } from '../hibernate_sql/presentation/web/api.js';
 import { createController } from '../hibernate_sql/presentation/web/controller.js';
+import { CONFIGURATIONS, initializeConfigHelp } from '../hibernate_sql/presentation/web/config-help.js';
 
 function element() {
   const classes = new Set();
@@ -12,14 +13,18 @@ function element() {
     focus() { this.focused = true; },
     select() { this.selected = true; },
     append(option) { this.options.push(option); this.value ||= option.value; },
+    showModal() { this.open = true; },
+    close() { this.open = false; },
   };
 }
 
 function setup(overrides = {}) {
   const elements = Object.fromEntries(
-    ['logs', 'output', 'status', 'prefix', 'normal', 'command', 'clear', 'copy', 'file', 'dropZone', 'download']
+    ['logs', 'output', 'status', 'prefix', 'normal', 'command', 'clear', 'copy', 'file', 'dropZone', 'download',
+      'configHelp', 'configDialog', 'configClose', 'configFormat', 'configNote', 'configCode', 'configCopy', 'configStatus']
       .map(id => [id, element()]),
   );
+  elements.configFormat.value = 'yaml';
   const requests = [];
   const api = {
     prefixes: async () => ['EXPLAIN ANALYZE'],
@@ -207,6 +212,11 @@ test('browser entry point binds real document elements to the controller', async
     await import('../hibernate_sql/presentation/web/app.js');
     assert.equal(state.elements.prefix.options[0].value, 'EXPLAIN');
     assert.equal(typeof state.elements.normal.onclick, 'function');
+    state.elements.configHelp.onclick();
+    assert.equal(state.elements.configDialog.open, true);
+    assert.match(state.elements.configCode.value, /org.hibernate.orm.jdbc.bind: TRACE/);
+    state.elements.configClose.onclick();
+    assert.equal(state.elements.configDialog.open, false);
     state.elements.output.value = 'select 123;';
     state.elements.download.onclick();
     assert.equal(await blobs[0].text(), 'select 123;');
@@ -390,4 +400,44 @@ test('download uses only the current SQL and is disabled after clear or conversi
   await failure.controller.initialize();
   await failure.controller.generate(false);
   assert.equal(failure.elements.download.disabled, true);
+});
+
+test('configuration help switches formats and copies only the selected configuration', async () => {
+  const { elements } = setup();
+  const copied = [];
+  initializeConfigHelp(elements, { writeText: async text => copied.push(text) });
+  elements.configHelp.onclick();
+  assert.equal(elements.configDialog.open, true);
+  for (const format of ['yaml', 'properties', 'logback', 'log4j2']) {
+    elements.configFormat.value = format;
+    elements.configFormat.onchange();
+    assert.equal(elements.configStatus.textContent, '');
+    assert.equal(elements.configNote.textContent, CONFIGURATIONS[format].note);
+    await elements.configCopy.onclick();
+    assert.equal(copied.at(-1), CONFIGURATIONS[format].code);
+    assert.equal(elements.configStatus.textContent, 'Configuração copiada.');
+  }
+  elements.configClose.onclick();
+  assert.equal(elements.configDialog.open, false);
+});
+
+test('configuration clipboard fallback selects the snippet for manual copying', async () => {
+  const { elements } = setup();
+  initializeConfigHelp(elements, undefined);
+  await elements.configCopy.onclick();
+  assert.equal(elements.configCode.focused, true);
+  assert.equal(elements.configCode.selected, true);
+  assert.match(elements.configStatus.textContent, /Ctrl\+C/);
+});
+
+test('a late clipboard completion does not label a different format as copied', async () => {
+  const { elements } = setup();
+  const pending = deferred();
+  initializeConfigHelp(elements, { writeText: () => pending.promise });
+  const copying = elements.configCopy.onclick();
+  elements.configFormat.value = 'properties';
+  elements.configFormat.onchange();
+  pending.resolve();
+  await copying;
+  assert.equal(elements.configStatus.textContent, '');
 });

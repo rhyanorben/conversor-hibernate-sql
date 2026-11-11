@@ -28,6 +28,10 @@ A conversão automática gera SQL sem comando adicional. Para converter após di
 
 Em telas de computador, os logs e a SQL ficam lado a lado em painéis de mesma largura, ajustados à altura da janela, com rolagem dentro dos campos. Em telas pequenas, os painéis ficam empilhados. As instruções adicionais estão em **Como usar**.
 
+O ícone de informação ao lado de **Logs do Hibernate** abre o guia **Gerar logs no Spring Boot**, com exemplos copiáveis para `application.yml` / `application.yaml`, `application.properties`, Logback (`logback-spring.xml` / `logback.xml`) e Log4j2 (`log4j2-spring.xml` / `log4j2.xml`). O guia explica como mesclar a configuração existente, selecionar o perfil ativo e coletar SQL e bindings. Os exemplos usam os loggers do Hibernate 6, com SQL em DEBUG, bindings em TRACE e thread completa no prefixo, sem cores. O formato antigo do Hibernate 5 (BasicBinder) não é suportado. Ative esses logs em desenvolvimento e desative após o diagnóstico, pois os valores dos parâmetros podem ser sensíveis.
+
+Referências do guia: [logging no Spring Boot](https://docs.spring.io/spring-boot/reference/features/logging.html) e [logging de SQL no Hibernate 6](https://docs.hibernate.org/orm/6.6/introduction/html_single/).
+
 Use **Copiar SQL** para levar o resultado ao PostgreSQL ou **Baixar .sql** para salvar a saída atual em `queries.sql`, inclusive o comando adicional se aplicado. Se o navegador não permitir acesso à área de transferência, a SQL será selecionada para copiar manualmente. Os arquivos importados seguem o mesmo fluxo de envio ao servidor dos logs colados; o download é gerado no navegador.
 
 ## Publicar no Render

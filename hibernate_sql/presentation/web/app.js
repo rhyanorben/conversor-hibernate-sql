@@ -1,5 +1,6 @@
 import { createApi } from './api.js';
 import { createController } from './controller.js';
+import { initializeConfigHelp } from './config-help.js';
 
 const elements = Object.fromEntries(
   ['logs', 'output', 'status', 'prefix', 'normal', 'command', 'clear', 'copy', 'file', 'dropZone', 'download']
@@ -30,5 +31,10 @@ const controller = createController(
     }
   },
 );
+
+initializeConfigHelp(Object.fromEntries(
+  ['configHelp', 'configDialog', 'configClose', 'configFormat', 'configNote', 'configCode', 'configCopy', 'configStatus']
+    .map(id => [id, document.getElementById(id)]),
+), navigator.clipboard);
 
 await controller.initialize();

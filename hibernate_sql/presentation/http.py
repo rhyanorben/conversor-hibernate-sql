@@ -17,6 +17,7 @@ STATIC_ROUTES = {
     '/styles.css': ('styles.css', 'text/css; charset=utf-8'),
     '/app.js': ('app.js', 'text/javascript; charset=utf-8'),
     '/controller.js': ('controller.js', 'text/javascript; charset=utf-8'),
+    '/config-help.js': ('config-help.js', 'text/javascript; charset=utf-8'),
     '/api.js': ('api.js', 'text/javascript; charset=utf-8'),
 }
 

@@ -211,6 +211,111 @@ footer {
   line-height: 1.5;
 }
 
+.logs-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.info-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 4px;
+  border-color: transparent;
+  color: #225fc5;
+}
+
+button:focus-visible {
+  outline: 3px solid #bed6ff;
+  outline-offset: 2px;
+}
+
+#configDialog {
+  width: min(820px, calc(100% - 32px));
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  padding: 24px;
+  border: 1px solid #dce2ed;
+  border-radius: 16px;
+  color: #182338;
+  overflow: auto;
+}
+
+#configDialog::backdrop {
+  background: rgb(24 35 56 / 55%);
+}
+
+#configDialog h2 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.config-heading {
+  position: sticky;
+  top: -24px;
+  z-index: 1;
+  padding: 12px 0;
+  background: white;
+  border-bottom: 1px solid #dce2ed;
+}
+
+#configFormat {
+  width: 100%;
+  min-width: 0;
+}
+
+.config-code {
+  display: block;
+  height: 245px;
+  min-height: 160px;
+  padding: 12px;
+  background: #f4f6fa;
+}
+
+.config-copy-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+#configStatus {
+  margin: 0;
+  color: #315a3d;
+  font-size: 14px;
+}
+
+.config-note,
+.config-steps,
+.config-sources {
+  color: #59677b;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.config-steps {
+  padding-left: 22px;
+}
+
+.config-steps li + li {
+  margin-top: 8px;
+}
+
+.config-example {
+  overflow: auto;
+  padding: 12px;
+  background: #f4f6fa;
+  border-radius: 8px;
+}
+
+.config-sources a {
+  color: #225fc5;
+}
+
 @media (max-width: 760px) {
   body {
     overflow: auto;

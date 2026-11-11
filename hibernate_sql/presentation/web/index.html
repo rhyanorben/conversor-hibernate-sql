@@ -18,7 +18,15 @@
   <div class="workspace">
     <section class="panel" id="dropZone">
       <div class="heading">
-        <label for="logs">Logs do Hibernate</label>
+        <div class="logs-title">
+          <label for="logs">Logs do Hibernate</label>
+          <button id="configHelp" class="info-button" type="button" aria-label="Como configurar os logs no Spring Boot" title="Configurar logs no Spring Boot" aria-haspopup="dialog" aria-controls="configDialog">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <circle cx="12" cy="12" r="9"/>
+              <path d="M12 11v6m0-10v.01"/>
+            </svg>
+          </button>
+        </div>
         <label class="file-import" for="file">
           Importar arquivo de logs
           <input id="file" type="file" accept=".log,.txt,text/plain" aria-describedby="importHelp">
@@ -54,5 +62,39 @@
   </div>
   <footer>Os logs são enviados ao servidor desta aplicação para conversão. Nenhuma query é executada pela aplicação. EXPLAIN ANALYZE executa a query quando você a roda no PostgreSQL.</footer>
 </main>
+<dialog id="configDialog" aria-labelledby="configTitle" aria-describedby="configIntro">
+  <div class="heading config-heading">
+    <h2 id="configTitle">Gerar logs no Spring Boot</h2>
+    <button id="configClose" type="button" aria-label="Fechar ajuda de configuração">Fechar</button>
+  </div>
+  <p id="configIntro">Para Hibernate 6: registre a SQL em DEBUG e os parâmetros em TRACE. Escolha o formato usado pela sua aplicação.</p>
+  <label for="configFormat">Arquivo de configuração</label>
+  <select id="configFormat">
+    <option value="yaml">application.yml / application.yaml</option>
+    <option value="properties">application.properties</option>
+    <option value="logback">Logback — logback-spring.xml / logback.xml</option>
+    <option value="log4j2">Log4j2 — log4j2-spring.xml / log4j2.xml</option>
+  </select>
+  <p id="configNote" class="config-note"></p>
+  <label for="configCode">Configuração para copiar</label>
+  <textarea id="configCode" class="config-code" readonly spellcheck="false" wrap="off"></textarea>
+  <div class="config-copy-row">
+    <button id="configCopy" class="primary" type="button">Copiar configuração</button>
+    <p id="configStatus" role="status" aria-live="polite"></p>
+  </div>
+  <ol class="config-steps">
+    <li>Edite o arquivo em <code>src/main/resources</code> ou no local definido pela sua aplicação, respeitando o perfil ativo. Escolha YAML ou properties; não é necessário criar ambos.</li>
+    <li>Reinicie a aplicação e execute a operação que consulta o banco. Copie a SQL e todas as linhas <code>binding parameter</code> correspondentes e cole no campo de logs desta ferramenta.</li>
+    <li>O padrão mantém a thread entre colchetes e o nome completo do logger, sem cores. Se houver configuração XML ou saída JSON personalizada, ajuste o appender usado para emitir texto nesse formato. Filtros do appender precisam permitir DEBUG e TRACE.</li>
+  </ol>
+  <details class="help">
+    <summary>Exemplo do log esperado</summary>
+    <pre class="config-example">2026-11-11T10:00:00.000 DEBUG [worker-1] org.hibernate.SQL : select * from minha_tabela where minha_coluna = ?
+2026-11-11T10:00:00.001 TRACE [worker-1] org.hibernate.orm.jdbc.bind : binding parameter (1:INTEGER) &lt;- [123]</pre>
+  </details>
+  <p class="config-note">Nos exemplos XML, mantenha também <code>spring.jpa.show-sql=false</code> e <code>spring.jpa.properties.hibernate.highlight_sql=false</code> na configuração da aplicação para evitar duplicações e cores na SQL. Hibernate 5 usa bindings de outro formato (BasicBinder), que o leitor atual não suporta.</p>
+  <p class="config-note">Use em desenvolvimento: os parâmetros podem expor dados sensíveis e TRACE aumenta o volume dos logs. Remova ou desative esses níveis após o diagnóstico.</p>
+  <p class="config-sources">Documentação: <a href="https://docs.spring.io/spring-boot/reference/features/logging.html" target="_blank" rel="noopener noreferrer">Spring Boot</a> · <a href="https://docs.hibernate.org/orm/6.6/introduction/html_single/" target="_blank" rel="noopener noreferrer">Hibernate 6</a></p>
+</dialog>
 </body>
 </html>
