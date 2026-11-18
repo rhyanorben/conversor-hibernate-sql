@@ -2,36 +2,30 @@ const pattern = "%d{yyyy-MM-dd'T'HH:mm:ss.SSS} %-5level [%thread] %logger : %msg
 
 export const CONFIGURATIONS = {
   yaml: {
-    note: 'application.yml ou application.yaml: use o arquivo do perfil de desenvolvimento, como application-dev.yml. Mescle as chaves spring e logging que já existirem. O padrão abaixo é para o Logback padrão do Spring Boot.',
+    note: 'Use o arquivo do perfil ativo, como application-dev.yml. Mescle com as chaves existentes. O bloco jpa fica dentro de spring, e org.hibernate é o nome completo do pacote dos loggers.',
     code: `spring:
   jpa:
-    show-sql: false
     properties:
       hibernate:
         format_sql: true
-        highlight_sql: false
+    show-sql: true
 
-logging:
-  level:
-    org.hibernate.SQL: DEBUG
-    org.hibernate.orm.jdbc.bind: TRACE
-  pattern:
-    console: "${pattern}"
+logging.level.org.hibernate:
+  SQL: DEBUG
+  orm.jdbc.bind: TRACE
 `,
   },
   properties: {
-    note: 'application.properties: alternativa ao YAML. Use o arquivo do perfil ativo, como application-dev.properties. Atualize as propriedades existentes em vez de duplicá-las. O padrão abaixo é para o Logback padrão do Spring Boot.',
-    code: `spring.jpa.show-sql=false
-spring.jpa.properties.hibernate.format_sql=true
-spring.jpa.properties.hibernate.highlight_sql=false
+    note: 'Use o arquivo do perfil ativo, como application-dev.properties. Atualize as propriedades já definidas nesse arquivo.',
+    code: `spring.jpa.properties.hibernate.format_sql=true
+spring.jpa.show-sql=true
 
 logging.level.org.hibernate.SQL=DEBUG
 logging.level.org.hibernate.orm.jdbc.bind=TRACE
-logging.pattern.console=${pattern}
 `,
   },
   logback: {
-    note: 'logback-spring.xml (recomendado no Spring Boot) ou logback.xml: use se o projeto já controla o logging por XML. Este é um exemplo mínimo; incorpore os loggers e o padrão ao appender existente, preservando os demais destinos e filtros.',
+    note: 'Para projetos com Logback. Em um XML existente, incorpore os loggers e ajuste o padrão do appender, preservando os demais destinos e filtros. Configure as opções JPA também no arquivo da aplicação.',
     code: `<configuration>
   <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
     <encoder>
@@ -47,7 +41,7 @@ logging.pattern.console=${pattern}
 `,
   },
   log4j2: {
-    note: 'log4j2-spring.xml ou log4j2.xml: alternativa para projetos que já usam Log4j2. Não basta criar este arquivo se o projeto usa Logback. Este é um exemplo mínimo; mescle com os appenders e filtros existentes.',
+    note: 'Para projetos com Log4j2. Em um XML existente, incorpore os loggers e ajuste o padrão do appender, preservando os demais destinos e filtros. Configure as opções JPA também no arquivo da aplicação.',
     code: `<Configuration>
   <Appenders>
     <Console name="CONSOLE" target="SYSTEM_OUT">

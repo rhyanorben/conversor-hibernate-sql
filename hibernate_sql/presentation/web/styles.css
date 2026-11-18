@@ -85,6 +85,11 @@ select:focus {
   margin-top: 12px;
 }
 
+#prefix {
+  min-width: 0;
+  max-width: 100%;
+}
+
 button,
 select {
   font: inherit;

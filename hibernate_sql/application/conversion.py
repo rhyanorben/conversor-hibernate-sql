@@ -7,7 +7,16 @@ from hibernate_sql.domain.models import ParameterError, Query
 from hibernate_sql.domain.substitution import substitute
 
 
-DEFAULT_PREFIXES = {'EXPLAIN ANALYZE': 'EXPLAIN ANALYZE'}
+DEFAULT_PREFIXES = {
+    command: command
+    for command in (
+        'EXPLAIN ANALYZE',
+        'EXPLAIN',
+        'EXPLAIN (FORMAT JSON)',
+        'EXPLAIN (ANALYZE, BUFFERS)',
+        'EXPLAIN (ANALYZE, BUFFERS, VERBOSE, SETTINGS, FORMAT JSON)',
+    )
+}
 
 
 @dataclass(frozen=True)

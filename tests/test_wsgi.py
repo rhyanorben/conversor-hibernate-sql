@@ -83,9 +83,16 @@ class WsgiIntegrationTests(unittest.TestCase):
         status, headers, body = self.request('GET', '/prefixes?source=cloud')
         self.assertEqual(status, 200)
         self.assertEqual(headers['Content-Type'], 'application/json; charset=utf-8')
-        self.assertEqual(json.loads(body), ['EXPLAIN ANALYZE'])
+        prefixes = json.loads(body)
+        self.assertEqual(prefixes, [
+            'EXPLAIN ANALYZE',
+            'EXPLAIN',
+            'EXPLAIN (FORMAT JSON)',
+            'EXPLAIN (ANALYZE, BUFFERS)',
+            'EXPLAIN (ANALYZE, BUFFERS, VERBOSE, SETTINGS, FORMAT JSON)',
+        ])
         log = 'Hibernate: select ?\nbinding parameter (1:VARCHAR) <- [João]'
-        for prefix in ['', 'EXPLAIN ANALYZE']:
+        for prefix in ['', *prefixes]:
             with self.subTest(prefix=prefix):
                 payload = json.dumps({'log': log, 'prefix': prefix}, ensure_ascii=False).encode('utf-8')
                 stream = RecordingInput(payload + b'not part of the request')

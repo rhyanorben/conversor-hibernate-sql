@@ -24,11 +24,11 @@ A porta `0` seleciona uma porta disponível; o endereço efetivo aparece no term
 
 Cole os logs com a SQL e todas as linhas `binding parameter (posição:TIPO) <- [valor]`. A conversão acontece automaticamente ao colar no campo. Você também pode selecionar um arquivo em **Importar arquivo de logs** ou arrastar um `.log` ou `.txt` para o painel de entrada: o conteúdo substitui o campo e é convertido automaticamente. Importe um arquivo por vez, em UTF-8, de até 5 MB; o limite da API considera também o JSON enviado, então um arquivo próximo desse limite pode ser recusado.
 
-A conversão automática gera SQL sem comando adicional. Para converter após digitar ou editar manualmente, clique em **Montar query**. Para adicionar um comando, escolha **EXPLAIN ANALYZE** e clique em **Montar com comando**.
+A conversão automática gera SQL sem comando adicional. Para converter após digitar ou editar manualmente, clique em **Montar query**. Para obter um plano, selecione uma opção de **EXPLAIN** e clique em **Montar com comando**.
 
 Em telas de computador, os logs e a SQL ficam lado a lado em painéis de mesma largura, ajustados à altura da janela, com rolagem dentro dos campos. Em telas pequenas, os painéis ficam empilhados. As instruções adicionais estão em **Como usar**.
 
-O ícone de informação ao lado de **Logs do Hibernate** abre o guia **Gerar logs no Spring Boot**, com exemplos copiáveis para `application.yml` / `application.yaml`, `application.properties`, Logback (`logback-spring.xml` / `logback.xml`) e Log4j2 (`log4j2-spring.xml` / `log4j2.xml`). O guia explica como mesclar a configuração existente, selecionar o perfil ativo e coletar SQL e bindings. Os exemplos usam os loggers do Hibernate 6, com SQL em DEBUG, bindings em TRACE e thread completa no prefixo, sem cores. O formato antigo do Hibernate 5 (BasicBinder) não é suportado. Ative esses logs em desenvolvimento e desative após o diagnóstico, pois os valores dos parâmetros podem ser sensíveis.
+O ícone de informação ao lado de **Logs do Hibernate** abre o guia **Gerar logs no Spring Boot**, com exemplos copiáveis para `application.yml` / `application.yaml`, `application.properties`, Logback (`logback-spring.xml` / `logback.xml`) e Log4j2 (`log4j2-spring.xml` / `log4j2.xml`). O guia usa `spring.jpa.show-sql=true` e `spring.jpa.properties.hibernate.format_sql=true`, com `org.hibernate.SQL` em DEBUG e `org.hibernate.orm.jdbc.bind` em TRACE. Com `show-sql` ativo, a SQL também pode aparecer com o prefixo `Hibernate:`. Ao copiar logs intercalados, use as linhas que incluem a thread. Os exemplos são para Hibernate 6. Ative esses logs em desenvolvimento e desative após o diagnóstico, pois os valores dos parâmetros podem ser sensíveis.
 
 Referências do guia: [logging no Spring Boot](https://docs.spring.io/spring-boot/reference/features/logging.html) e [logging de SQL no Hibernate 6](https://docs.hibernate.org/orm/6.6/introduction/html_single/).
 
@@ -123,17 +123,9 @@ queries = convert('Hibernate: select ?\nbinding parameter (1:INTEGER) <- [42]')
 
 ## Adicionar comandos
 
-Edite `DEFAULT_PREFIXES` em `hibernate_sql/application/conversion.py` e reinicie a aplicação. A chave é o nome exibido na seleção e o valor é inserido antes de cada SQL:
+O seletor inclui `EXPLAIN`, `EXPLAIN (FORMAT JSON)`, `EXPLAIN ANALYZE`, `EXPLAIN (ANALYZE, BUFFERS)` e `EXPLAIN (ANALYZE, BUFFERS, VERBOSE, SETTINGS, FORMAT JSON)`. O PostgreSQL executa a instrução quando o plano inclui `ANALYZE`, inclusive `INSERT`, `UPDATE` e `DELETE`. Consulte a [documentação do PostgreSQL](https://www.postgresql.org/docs/current/sql-explain.html).
 
-```python
-DEFAULT_PREFIXES = {
-    'EXPLAIN ANALYZE': 'EXPLAIN ANALYZE',
-    'EXPLAIN': 'EXPLAIN',
-    'EXPLAIN com buffers': 'EXPLAIN (ANALYZE, BUFFERS)',
-}
-```
-
-Também é possível injetar um dicionário próprio ao criar `ConversionService`, sem alterar a configuração padrão.
+Para adicionar opções, edite `DEFAULT_PREFIXES` em `hibernate_sql/application/conversion.py` e reinicie a aplicação. A chave é o nome exibido na seleção e o valor é inserido antes de cada SQL. Também é possível fornecer um dicionário próprio ao criar `ConversionService`.
 
 ## Comportamento e limites
 
@@ -148,7 +140,7 @@ Também é possível injetar um dicionário próprio ao criar `ConversionService
 - `?` usado como operador PostgreSQL fora de regiões protegidas é interpretado como placeholder.
 - Valores truncados, binários, arrays e objetos que exigem serialização própria não podem ser reconstruídos de forma confiável. Um texto literal `null` não pode ser distinguido de NULL nesse formato de log. Casts não validam o conteúdo de datas ou UUIDs; essa validação pertence ao PostgreSQL.
 
-Os logs são enviados pelo navegador ao servidor desta aplicação para conversão. Na execução local, esse servidor fica no seu computador; na nuvem, o processamento ocorre no provedor de hospedagem. A aplicação não grava o corpo das requisições nem os logs enviados e não possui login: quem tiver acesso ao endereço poderá usar a ferramenta. Nenhuma query é executada pela aplicação. Ao executar EXPLAIN ANALYZE no PostgreSQL, o banco executa a instrução, inclusive INSERT/UPDATE/DELETE.
+Os logs são enviados pelo navegador ao servidor desta aplicação para conversão. Na execução local, esse servidor fica no seu computador; na nuvem, o processamento ocorre no provedor de hospedagem. A aplicação não grava o corpo das requisições nem os logs enviados e não possui login: quem tiver acesso ao endereço poderá usar a ferramenta. Nenhuma query é executada pela aplicação.
 
 A tela bloqueia cliques de conversão enquanto uma operação está em andamento. Editar, colar, importar outro arquivo ou limpar os campos invalida resultados pendentes para que respostas ou leituras antigas não preencham novamente a saída. Alterar a entrada também limpa o resultado anterior e desabilita a cópia e o download até uma nova conversão bem-sucedida.
 

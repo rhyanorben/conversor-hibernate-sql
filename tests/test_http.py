@@ -47,7 +47,9 @@ class HttpIntegrationTests(unittest.TestCase):
     def test_prefixes_and_unknown_routes(self):
         status, _, body = self.request('GET', '/prefixes')
         self.assertEqual(status, 200)
-        self.assertEqual(json.loads(body), ['EXPLAIN ANALYZE'])
+        prefixes = json.loads(body)
+        self.assertEqual(prefixes[0], 'EXPLAIN ANALYZE')
+        self.assertIn('EXPLAIN (ANALYZE, BUFFERS, VERBOSE, SETTINGS, FORMAT JSON)', prefixes)
         for method, path in [('GET', '/missing'), ('GET', '/../app.py'), ('POST', '/missing')]:
             with self.subTest(method=method, path=path):
                 status, _, body = self.request(method, path)

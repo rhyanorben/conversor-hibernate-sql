@@ -214,7 +214,8 @@ test('browser entry point binds real document elements to the controller', async
     assert.equal(typeof state.elements.normal.onclick, 'function');
     state.elements.configHelp.onclick();
     assert.equal(state.elements.configDialog.open, true);
-    assert.match(state.elements.configCode.value, /org.hibernate.orm.jdbc.bind: TRACE/);
+    assert.match(state.elements.configCode.value, /^    show-sql: true$/m);
+    assert.match(state.elements.configCode.value, /^logging\.level\.org\.hibernate:\n  SQL: DEBUG\n  orm\.jdbc\.bind: TRACE$/m);
     state.elements.configClose.onclick();
     assert.equal(state.elements.configDialog.open, false);
     state.elements.output.value = 'select 123;';
