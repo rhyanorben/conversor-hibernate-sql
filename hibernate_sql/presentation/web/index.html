@@ -13,13 +13,13 @@
 <main>
   <header>
     <h1>Hibernate → PostgreSQL</h1>
-    <p>Cole a SQL e os logs de binding. Gere a query com os valores preenchidos para testar no PostgreSQL.</p>
+    <p>Cole a SQL e os logs de binding do Hibernate ou Spring JDBC. Gere a query com os valores preenchidos para testar no PostgreSQL.</p>
   </header>
   <div class="workspace">
     <section class="panel" id="dropZone">
       <div class="heading">
         <div class="logs-title">
-          <label for="logs">Logs do Hibernate</label>
+          <label for="logs">Logs do Hibernate ou JDBC</label>
           <button id="configHelp" class="info-button" type="button" aria-label="Como configurar os logs no Spring Boot" title="Configurar logs no Spring Boot" aria-haspopup="dialog" aria-controls="configDialog">
             <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
               <circle cx="12" cy="12" r="9"/>
@@ -44,6 +44,7 @@
         <details class="help">
           <summary>Como usar</summary>
           <p id="importHelp">Cole os logs ou arraste um arquivo .log ou .txt para este painel para converter automaticamente em SQL sem comando adicional.</p>
+          <p>Para Spring JDBC, cole os registros <code>Executing prepared SQL statement</code> do <code>JdbcTemplate</code> e <code>Setting SQL statement parameter value</code> do <code>StatementCreatorUtils</code>.</p>
           <p>Logs misturados são separados automaticamente quando a thread está identificada nos registros de SQL e binding. Os erros indicam a query, a linha e o parâmetro envolvidos, quando disponíveis.</p>
         </details>
         <p id="status" role="status" aria-live="polite"></p>

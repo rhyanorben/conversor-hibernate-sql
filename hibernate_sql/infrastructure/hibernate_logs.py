@@ -10,8 +10,40 @@ BIND_LOG = re.compile(
 )
 BIND_POSITION = re.compile(r'binding parameter\s*\(([^:)]*)')
 SQL_LOG = re.compile(r'(?:org\.hibernate\.SQL\s*(?::|-)\s*|^\s*Hibernate:\s*)(.*)$')
+JDBC_SQL_LOG = re.compile(
+    r'(?:org\.springframework|o\.s)\.jdbc\.core\.JdbcTemplate\s*(?::|-)\s*'
+    r'Executing prepared SQL statement \[(.*)$'
+)
+JDBC_BIND_LOG = re.compile(
+    r'(?:org\.springframework|o\.s)\.jdbc\.core\.StatementCreatorUtils\s*(?::|-)\s*'
+    r'Setting SQL statement parameter value:'
+)
+JDBC_BIND = re.compile(
+    r'Setting SQL statement parameter value: column index (\d+), '
+    r'parameter value \[(.*)\], value class \[([^\]]*)\], SQL type (unknown|-?\d+)\s*$'
+)
+JDBC_POSITION = re.compile(r'column index ([^,]*)')
+JAVA_TYPES = {
+    'java.lang.Byte': 'TINYINT', 'java.lang.Short': 'SMALLINT',
+    'java.lang.Integer': 'INTEGER', 'java.lang.Long': 'BIGINT',
+    'java.math.BigInteger': 'NUMERIC', 'java.math.BigDecimal': 'DECIMAL',
+    'java.lang.Float': 'FLOAT', 'java.lang.Double': 'DOUBLE',
+    'java.lang.Boolean': 'BOOLEAN',
+    'java.sql.Date': 'DATE', 'java.time.LocalDate': 'DATE',
+    'java.sql.Time': 'TIME', 'java.time.LocalTime': 'TIME',
+    'java.sql.Timestamp': 'TIMESTAMP', 'java.time.LocalDateTime': 'TIMESTAMP',
+    'java.time.OffsetDateTime': 'TIMESTAMP_WITH_TIMEZONE',
+    'java.time.OffsetTime': 'TIME_WITH_TIMEZONE', 'java.util.UUID': 'UUID',
+}
+JDBC_TYPES = {
+    '-7': 'BIT', '-6': 'TINYINT', '-5': 'BIGINT', '5': 'SMALLINT',
+    '4': 'INTEGER', '2': 'NUMERIC', '3': 'DECIMAL', '6': 'FLOAT',
+    '7': 'REAL', '8': 'DOUBLE', '16': 'BOOLEAN', '91': 'DATE',
+    '92': 'TIME', '93': 'TIMESTAMP', '2013': 'TIME_WITH_TIMEZONE',
+    '2014': 'TIMESTAMP_WITH_TIMEZONE',
+}
 LOG_START = re.compile(
-    r'^\s*(?:\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}|\d{2}:\d{2}:\d{2}|'
+    r'^\s*-?(?:\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}|\d{2}:\d{2}:\d{2}|'
     r'\[[^\]]+\]\s+(?:TRACE|DEBUG|INFO|WARN|ERROR)\b)'
 )
 THREAD = re.compile(r'\[([^\[\]]+)\]')
@@ -34,9 +66,17 @@ class HibernateLogParser:
         active = {}
         collecting = None
         duplicate_candidate = None
+        jdbc_collecting = False
 
         def finish_sql():
-            nonlocal collecting, duplicate_candidate
+            nonlocal collecting, duplicate_candidate, jdbc_collecting
+            if collecting is not None and jdbc_collecting:
+                sql = collecting.sql.rstrip()
+                if not sql.endswith(']'):
+                    raise collecting.error('Registro SQL JDBC sem fechamento ].', queries.index(collecting) + 1)
+                # Remove only the logger wrapper; PostgreSQL arrays also use brackets.
+                collecting.sql = sql[:-1].strip()
+            jdbc_collecting = False
             if (collecting is not None and duplicate_candidate is not None
                     and collecting.sql.strip() == duplicate_candidate.sql.strip()
                     and not duplicate_candidate.parameters):
@@ -62,10 +102,13 @@ class HibernateLogParser:
             raise ValueError(context + ': ' + message)
 
         for line_number, line in enumerate(log.splitlines(), 1):
-            sql_match = SQL_LOG.search(line)
-            bind_log = BIND_LOG.search(line)
+            jdbc_sql = JDBC_SQL_LOG.search(line)
+            sql_match = jdbc_sql or SQL_LOG.search(line)
+            jdbc_bind = JDBC_BIND_LOG.search(line)
+            bind_log = jdbc_bind or BIND_LOG.search(line)
             if sql_match:
                 finish_sql()
+                jdbc_collecting = jdbc_sql is not None
                 previous = queries[-1] if queries else None
                 thread = thread_before(line, sql_match)
                 collecting = Query(sql_match.group(1).strip(), line_number=line_number, thread=thread)
@@ -88,8 +131,8 @@ class HibernateLogParser:
                     query = active.pop(None)
                     query.thread = thread
                     active[thread] = query
-                bind_match = BIND.search(line)
-                position_match = BIND_POSITION.search(line)
+                bind_match = (JDBC_BIND if jdbc_bind else BIND).search(line)
+                position_match = (JDBC_POSITION if jdbc_bind else BIND_POSITION).search(line)
                 position_text = position_match.group(1) if position_match else None
                 if query is None:
                     fail('Encontrado binding sem uma SQL anterior para esta thread.',
@@ -97,7 +140,11 @@ class HibernateLogParser:
                 if not bind_match:
                     fail('Linha de binding inválida. Cole o registro completo.',
                          line_number, thread, query, position_text)
-                position, kind, value = bind_match.groups()
+                if jdbc_bind:
+                    position, value, java_class, sql_type = bind_match.groups()
+                    kind = JDBC_TYPES.get(sql_type, JAVA_TYPES.get(java_class, 'VARCHAR'))
+                else:
+                    position, kind, value = bind_match.groups()
                 try:
                     position = int(position)
                     query.add_binding(position, Binding(kind, value))

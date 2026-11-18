@@ -1,6 +1,6 @@
 # Hibernate → PostgreSQL
 
-Aplicação que reconstrói SQL PostgreSQL a partir dos logs de SQL e binding do Hibernate. Para executar localmente, usa Python 3.8+ e apenas a biblioteca padrão, sem dependências para instalar. Para publicar na nuvem, usa Gunicorn e Python 3.13, conforme os arquivos de configuração do projeto. Node.js 22+ é necessário somente para os testes do JavaScript. A aplicação não se conecta ao banco.
+Aplicação que reconstrói SQL PostgreSQL a partir dos logs de SQL e binding do Hibernate ou Spring JDBC. Para executar localmente, usa Python 3.8+ e apenas a biblioteca padrão, sem dependências para instalar. Para publicar na nuvem, usa Gunicorn e Python 3.13, conforme os arquivos de configuração do projeto. Node.js 22+ é necessário somente para os testes do JavaScript. A aplicação não se conecta ao banco.
 
 ## Hospedado na WEB
 
@@ -126,6 +126,22 @@ queries = convert('Hibernate: select ?\nbinding parameter (1:INTEGER) <- [42]')
 O seletor inclui `EXPLAIN`, `EXPLAIN (FORMAT JSON)`, `EXPLAIN ANALYZE`, `EXPLAIN (ANALYZE, BUFFERS)` e `EXPLAIN (ANALYZE, BUFFERS, VERBOSE, SETTINGS, FORMAT JSON)`. O PostgreSQL executa a instrução quando o plano inclui `ANALYZE`, inclusive `INSERT`, `UPDATE` e `DELETE`. Consulte a [documentação do PostgreSQL](https://www.postgresql.org/docs/current/sql-explain.html).
 
 Para adicionar opções, edite `DEFAULT_PREFIXES` em `hibernate_sql/application/conversion.py` e reinicie a aplicação. A chave é o nome exibido na seleção e o valor é inserido antes de cada SQL. Também é possível fornecer um dicionário próprio ao criar `ConversionService`.
+
+## Logs Spring JDBC
+
+Também aceita `Executing prepared SQL statement [SQL]` do logger
+`org.springframework.jdbc.core.JdbcTemplate` e os parâmetros
+`Setting SQL statement parameter value: column index N, parameter value [valor], value class [classe], SQL type unknown`
+do logger `org.springframework.jdbc.core.StatementCreatorUtils`. Os nomes abreviados
+`o.s.jdbc.core.JdbcTemplate` e `o.s.jdbc.core.StatementCreatorUtils` também são aceitos.
+Cole a SQL e todos os parâmetros, mantendo a identificação da thread.
+
+O tipo SQL numérico, quando reconhecido, determina a conversão; caso contrário,
+a classe Java identifica números, booleanos, datas, horários e UUIDs.
+`OffsetDateTime` mantém o fuso com `::timestamptz`. Strings com arrays PostgreSQL,
+como `{2532}` e `{ATENDIMENTO,PEDIDO}`, são preservadas como texto para os
+`CAST(? AS int[])` e `CAST(? AS text[])` da SQL original. Não há reconstrução de
+objetos Java de array a partir de sua identidade em memória.
 
 ## Comportamento e limites
 
